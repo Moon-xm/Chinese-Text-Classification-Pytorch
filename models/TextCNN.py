@@ -15,13 +15,13 @@ class Config(object):
         self.test_path = dataset + '/data/test.txt'                                  # 测试集
         self.class_list = [x.strip() for x in open(
             dataset + '/data/class.txt', encoding='utf-8').readlines()]              # 类别名单
-        self.vocab_path = dataset + '/data/vocab.pkl'                                # 词表
+        self.vocab_path = dataset + '/data/vocab.pkl'                                # 词表  dataste=THUCNews
         self.save_path = dataset + '/saved_dict/' + self.model_name + '.ckpt'        # 模型训练结果
         self.log_path = dataset + '/log/' + self.model_name
         self.embedding_pretrained = torch.tensor(
             np.load(dataset + '/data/' + embedding)["embeddings"].astype('float32'))\
-            if embedding != 'random' else None                                       # 预训练词向量
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')   # 设备
+            if embedding != 'random' else None                                       # 预训练词向量 embedding='embedding_SougouNews.npz' or ‘random
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')   # 设备  gpu or cpu
 
         self.dropout = 0.5                                              # 随机失活
         self.require_improvement = 1000                                 # 若超过1000batch效果还没提升，则提前结束训练
@@ -32,9 +32,9 @@ class Config(object):
         self.pad_size = 32                                              # 每句话处理成的长度(短填长切)
         self.learning_rate = 1e-3                                       # 学习率
         self.embed = self.embedding_pretrained.size(1)\
-            if self.embedding_pretrained is not None else 300           # 字向量维度
+            if self.embedding_pretrained is not None else 300           # 字向量维度  300d
         self.filter_sizes = (2, 3, 4)                                   # 卷积核尺寸
-        self.num_filters = 256                                          # 卷积核数量(channels数)
+        self.num_filters = 256                                          # 卷积核数量(channels数)  输出通道数
 
 
 '''Convolutional Neural Networks for Sentence Classification'''
@@ -46,17 +46,20 @@ class Model(nn.Module):
         if config.embedding_pretrained is not None:
             self.embedding = nn.Embedding.from_pretrained(config.embedding_pretrained, freeze=False)
         else:
-            self.embedding = nn.Embedding(config.n_vocab, config.embed, padding_idx=config.n_vocab - 1)
+            self.embedding = nn.Embedding(config.n_vocab, config.embed, padding_idx=config.n_vocab - 1)  # PAD索引
         self.convs = nn.ModuleList(
             [nn.Conv2d(1, config.num_filters, (k, config.embed)) for k in config.filter_sizes])
         self.dropout = nn.Dropout(config.dropout)
         self.fc = nn.Linear(config.num_filters * len(config.filter_sizes), config.num_classes)
 
-    def conv_and_pool(self, x, conv):
+    def conv_and_pool(self, x, conv):  # conv->relu->max_pool
         x = F.relu(conv(x)).squeeze(3)
         x = F.max_pool1d(x, x.size(2)).squeeze(2)
         return x
 
+    # 后续数据预处理时候，x被处理成是一个tuple,其形状是: (data, length).
+    # 其中data(b_size, seq_len),  length(batch_size)
+    # x[0]:(b_size, seq_len)
     def forward(self, x):
         out = self.embedding(x[0])
         out = out.unsqueeze(1)

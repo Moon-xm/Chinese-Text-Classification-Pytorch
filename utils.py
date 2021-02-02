@@ -12,7 +12,7 @@ MAX_VOCAB_SIZE = 10000  # 词表长度限制
 UNK, PAD = '<UNK>', '<PAD>'  # 未知字，padding符号
 
 
-def build_vocab(file_path, tokenizer, max_size, min_freq):
+def build_vocab(file_path, tokenizer, max_size, min_freq):  # 构建词典vocab.pkl
     vocab_dic = {}
     with open(file_path, 'r', encoding='UTF-8') as f:
         for line in tqdm(f):
@@ -22,7 +22,8 @@ def build_vocab(file_path, tokenizer, max_size, min_freq):
             content = lin.split('\t')[0]
             for word in tokenizer(content):
                 vocab_dic[word] = vocab_dic.get(word, 0) + 1
-        vocab_list = sorted([_ for _ in vocab_dic.items() if _[1] >= min_freq], key=lambda x: x[1], reverse=True)[:max_size]
+        vocab_list = sorted([_ for _ in vocab_dic.items() if _[1] >= min_freq],
+                            key=lambda x: x[1], reverse=True)[:max_size]
         vocab_dic = {word_count[0]: idx for idx, word_count in enumerate(vocab_list)}
         vocab_dic.update({UNK: len(vocab_dic), PAD: len(vocab_dic) + 1})
     return vocab_dic
@@ -30,14 +31,14 @@ def build_vocab(file_path, tokenizer, max_size, min_freq):
 
 def build_dataset(config, ues_word):
     if ues_word:
-        tokenizer = lambda x: x.split(' ')  # 以空格隔开，word-level
+        tokenizer = lambda x: x.split(' ')  # 以空格隔开，word-level  分好词的语料
     else:
         tokenizer = lambda x: [y for y in x]  # char-level
     if os.path.exists(config.vocab_path):
         vocab = pkl.load(open(config.vocab_path, 'rb'))
     else:
         vocab = build_vocab(config.train_path, tokenizer=tokenizer, max_size=MAX_VOCAB_SIZE, min_freq=1)
-        pkl.dump(vocab, open(config.vocab_path, 'wb'))
+        pkl.dump(vocab, open(config.vocab_path, 'wb'))  # 存储每个字及对应索引的字典 eg：我：56  vocab['我’]=56
     print(f"Vocab size: {len(vocab)}")
 
     def load_dataset(path, pad_size=32):
@@ -59,7 +60,7 @@ def build_dataset(config, ues_word):
                         seq_len = pad_size
                 # word to id
                 for word in token:
-                    words_line.append(vocab.get(word, vocab.get(UNK)))
+                    words_line.append(vocab.get(word, vocab.get(UNK)))  # 词典中若不存在则返回UNK对应的数值
                 contents.append((words_line, int(label), seq_len))
         return contents  # [([...], 0), ([...], 1), ...]
     train = load_dataset(config.train_path, config.pad_size)
@@ -68,7 +69,7 @@ def build_dataset(config, ues_word):
     return vocab, train, dev, test
 
 
-class DatasetIterater(object):
+class DatasetIterater(object):  # 将传入的数据转化为
     def __init__(self, batches, batch_size, device):
         self.batch_size = batch_size
         self.batches = batches
@@ -80,16 +81,16 @@ class DatasetIterater(object):
         self.device = device
 
     def _to_tensor(self, datas):
-        x = torch.LongTensor([_[0] for _ in datas]).to(self.device)
-        y = torch.LongTensor([_[1] for _ in datas]).to(self.device)
+        x = torch.LongTensor([_[0] for _ in datas]).to(self.device)  # 每个词对应的索引组成的列表
+        y = torch.LongTensor([_[1] for _ in datas]).to(self.device)  # 标签
 
         # pad前的长度(超过pad_size的设为pad_size)
         seq_len = torch.LongTensor([_[2] for _ in datas]).to(self.device)
-        return (x, seq_len), y
+        return (x, seq_len), y  # x和seq_len构成一个tuple
 
     def __next__(self):
         if self.residue and self.index == self.n_batches:
-            batches = self.batches[self.index * self.batch_size: len(self.batches)]
+            batches = self.batches[self.index * self.batch_size: len(self.batches)]  # [索引列表，label，seq_len]
             self.index += 1
             batches = self._to_tensor(batches)
             return batches
@@ -126,7 +127,9 @@ def get_time_dif(start_time):
 
 
 if __name__ == "__main__":
-    '''提取预训练词向量'''
+    '''提取预训练词向量
+    根据每个字对应索引在预训练模型pretrain_dir中选择相应的词嵌入 
+    并保存为file_trimmed_dir 注：该文件保存的只是每个字的向量，没有字在里面'''
     # 下面的目录、文件名按需更改。
     train_dir = "./THUCNews/data/train.txt"
     vocab_dir = "./THUCNews/data/vocab.pkl"

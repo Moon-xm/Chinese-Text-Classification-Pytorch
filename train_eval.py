@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from sklearn import metrics
 import time
 from utils import get_time_dif
-from tensorboardX import SummaryWriter
+# from tensorboardX import SummaryWriter
 
 
 # 权重初始化，默认xavier
@@ -37,7 +37,7 @@ def train(config, model, train_iter, dev_iter, test_iter):
     dev_best_loss = float('inf')
     last_improve = 0  # 记录上次验证集loss下降的batch数
     flag = False  # 记录是否很久没有效果提升
-    writer = SummaryWriter(log_dir=config.log_path + '/' + time.strftime('%m-%d_%H.%M', time.localtime()))
+    # writer = SummaryWriter(log_dir=config.log_path + '/' + time.strftime('%m-%d_%H.%M', time.localtime()))
     for epoch in range(config.num_epochs):
         print('Epoch [{}/{}]'.format(epoch + 1, config.num_epochs))
         # scheduler.step() # 学习率衰减
@@ -48,25 +48,26 @@ def train(config, model, train_iter, dev_iter, test_iter):
             loss.backward()
             optimizer.step()
             if total_batch % 100 == 0:
-                # 每多少轮输出在训练集和验证集上的效果
+                # 每多少batch输出在训练集和验证集上的效果
                 true = labels.data.cpu()
-                predic = torch.max(outputs.data, 1)[1].cpu()
+                predic = torch.max(outputs.data, 1)[1].cpu()  # 将结果转移到cpu
                 train_acc = metrics.accuracy_score(true, predic)
                 dev_acc, dev_loss = evaluate(config, model, dev_iter)
-                if dev_loss < dev_best_loss:
+                if dev_loss < dev_best_loss:  # 保存验证集loss最小的模型
                     dev_best_loss = dev_loss
                     torch.save(model.state_dict(), config.save_path)
                     improve = '*'
-                    last_improve = total_batch
+                    last_improve = total_batch  # 验证集loss减小即认为有提升
                 else:
                     improve = ''
                 time_dif = get_time_dif(start_time)
-                msg = 'Iter: {0:>6},  Train Loss: {1:>5.2},  Train Acc: {2:>6.2%},  Val Loss: {3:>5.2},  Val Acc: {4:>6.2%},  Time: {5} {6}'
+                msg = 'Iter: {0:>6},  Train Loss: {1:>5.2},' \
+                      '  Train Acc: {2:>6.2%},  Val Loss: {3:>5.2},  Val Acc: {4:>6.2%},  Time: {5} {6}'
                 print(msg.format(total_batch, loss.item(), train_acc, dev_loss, dev_acc, time_dif, improve))
-                writer.add_scalar("loss/train", loss.item(), total_batch)
-                writer.add_scalar("loss/dev", dev_loss, total_batch)
-                writer.add_scalar("acc/train", train_acc, total_batch)
-                writer.add_scalar("acc/dev", dev_acc, total_batch)
+                # writer.add_scalar("loss/train", loss.item(), total_batch)
+                # writer.add_scalar("loss/dev", dev_loss, total_batch)
+                # writer.add_scalar("acc/train", train_acc, total_batch)
+                # writer.add_scalar("acc/dev", dev_acc, total_batch)
                 model.train()
             total_batch += 1
             if total_batch - last_improve > config.require_improvement:
@@ -76,14 +77,14 @@ def train(config, model, train_iter, dev_iter, test_iter):
                 break
         if flag:
             break
-    writer.close()
+    # writer.close()
     test(config, model, test_iter)
 
 
 def test(config, model, test_iter):
     # test
-    model.load_state_dict(torch.load(config.save_path))
-    model.eval()
+    model.load_state_dict(torch.load(config.save_path))  # 训练完成后用在dev上loss最小的模型进行测试，进行最终评价
+    model.eval()  # 关闭dropout
     start_time = time.time()
     test_acc, test_loss, test_report, test_confusion = evaluate(config, model, test_iter, test=True)
     msg = 'Test Loss: {0:>5.2},  Test Acc: {1:>6.2%}'
@@ -116,4 +117,4 @@ def evaluate(config, model, data_iter, test=False):
         report = metrics.classification_report(labels_all, predict_all, target_names=config.class_list, digits=4)
         confusion = metrics.confusion_matrix(labels_all, predict_all)
         return acc, loss_total / len(data_iter), report, confusion
-    return acc, loss_total / len(data_iter)
+    return acc, loss_total / len(data_iter)  # 为何这里要除以len(data_iter)

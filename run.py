@@ -7,9 +7,10 @@ from importlib import import_module
 import argparse
 
 parser = argparse.ArgumentParser(description='Chinese Text Classification')
-parser.add_argument('--model', type=str, required=True, help='choose a model: TextCNN, TextRNN, FastText, TextRCNN, TextRNN_Att, DPCNN, Transformer')
-parser.add_argument('--embedding', default='pre_trained', type=str, help='random or pre_trained')
-parser.add_argument('--word', default=False, type=bool, help='True for word, False for char')
+parser.add_argument('--model', type=str, required=True, help='choose a model: TextCNN, TextRNN, FastText,'
+                                                             ' TextRCNN, TextRNN_Att, DPCNN, Transformer')  # 选择模型
+parser.add_argument('--embedding', default='pre_trained', type=str, help='random or pre_trained')  # 是否需要加载预训练词向量
+parser.add_argument('--word', default=False, type=bool, help='True for word, False for char')  # word词级别 char字符级别（单个字）
 args = parser.parse_args()
 
 
@@ -27,7 +28,7 @@ if __name__ == '__main__':
     else:
         from utils import build_dataset, build_iterator, get_time_dif
 
-    x = import_module('models.' + model_name)
+    x = import_module('models.' + model_name)  # 导入相关训练模型
     config = x.Config(dataset, embedding)
     np.random.seed(1)
     torch.manual_seed(1)
